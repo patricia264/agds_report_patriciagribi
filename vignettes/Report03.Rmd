@@ -1,0 +1,126 @@
+---
+title: "Report Excercise 03: Cleaning Data from elevated CO2 Experiments"
+author: "Patricia Gribi"
+date: "2023-03-02"
+output: html_document
+---
+
+## Data Cleaning
+
+In a first step the data from the paper “Faster Decomposition Under Increased 
+Atmospheric CO2 Limits Soil Carbon Storage” (Groeningen et al. 2014: 508–9) was 
+cleaned and converted into a CSV file that can be read into r.
+
+
+```{r, message = FALSE}
+
+# read dataset and load libraries
+library(tidyverse)
+library(dplyr)
+library(knitr)
+
+soil_organic_carbon <- read_csv("../data/03ex_tidy_data.csv") 
+
+```
+
+
+```{r}
+
+# variables not interested in are removed
+soil_organic_carbon <- select(
+  soil_organic_carbon,
+  -contains("Citation"),
+  -contains("Value_treatment"),
+  -starts_with("Description")
+)
+
+```
+
+
+## Calculations
+
+As a next step the log response ratio for each data sample was calculated. After
+that the experiments were grouped and the mean of the log response ratios for 
+each experiment was calculated.
+
+
+```{r}
+
+exp_log_response_ratios <- soil_organic_carbon |> 
+  mutate(
+    # calculates log_response_ratio for each sample date of a experiment
+    sample_dates_log_response_ratio = log(increased_CO2_mean/ambient_CO2_mean, 
+                                          base= exp(1))) |> 
+ 
+  group_by(Experiment) |> 
+  summarise(
+    # takes the mean of all the log_response_rations within an experiment
+    exp_log_response_ratio = mean(sample_dates_log_response_ratio)) 
+
+```
+
+
+In a next step the mean of the log response ratios for the samples were 
+aggregated for 3 experiment phases. An early phase (<3 years since start of the
+experiment), a mid-phase (3-6 years since start of the experiment), and a late 
+phase (>6 years since start of the experiment) were distinguished.
+
+
+```{r}
+
+ph_exp_log_response_ratios <- soil_organic_carbon |>
+  mutate(
+    # calculates log_response_ratio for each sample date of a experiment
+    sample_dates_log_response_ratio = log(increased_CO2_mean/ambient_CO2_mean, 
+                                          base= exp(1))) |> 
+  
+  # the experiments are converted into 3 phases 
+  mutate(Experiment_Phase = ifelse(`Time_(years)` < 3, "early phase",  
+                            ifelse(`Time_(years)` >= 3 & `Time_(years)` <= 6, 
+                                   "mid-phase", "late-phase"))) 
+
+  
+ph_exp_log_response_ratios <- ph_exp_log_response_ratios |>
+  group_by(Experiment_Phase) |> 
+  # the log response ratio for each phase is calculated
+  summarise(mean(sample_dates_log_response_ratio)) 
+  
+```
+
+
+## Results
+
+
+The first table shows the log response ratio for each experiment.
+
+
+```{r}
+
+# table of the results
+kable(exp_log_response_ratios, caption = "Log Response Ratios of different 
+      Experiments", col.names = c("Experiments", "Log Response Ratios"))
+
+```
+
+
+The second table shows the log response ratio for 3 experiment-phases.
+
+
+```{r}
+
+# table of the results
+kable(ph_exp_log_response_ratios, caption = "Log Response Ratios of different 
+      Experiment-Phases", col.names = c("Exp.-Phases", "Log Response Ratios"))
+
+```
+
+
+## References
+
+Groenigen, Kees Jan van, Xuan Qi, Craig W. Osenberg, Yiqi Luo, and Bruce A. 
+Hungate. “Faster Decomposition Under Increased Atmospheric CO2 Limits Soil 
+Carbon Storage.” Science 344, no. 6183 (May 2, 2014): 508–9.
+https://doi.org/10.1126/science.1249534.
+
+
+

@@ -1,0 +1,50 @@
+---
+title: "Report Excercise 3: Cleaning Data from elevated CO2 Experiments"
+author: "Patricia Gribi"
+date: "2023-03-02"
+output: html_document
+---
+
+In a first step the data from the paper “Faster Decomposition Under Increased Atmospheric CO2 Limits Soil Carbon Storage.” was cleaned and converted into a CSV file that can be read into r.
+
+```{r}
+
+library(tidyverse)
+
+soil_organic_carbon <- read_csv("./data/03ex_tidy_data.csv") 
+
+```
+
+As a next step the different experiments were grouped. Furthermore the log-response ratio for each experiment was calculated. 
+
+Describe more, insert Einheiten, Tabelle formatieren, anderer Variablen-Name
+
+Wegen Einrückung fragen
+
+What is ambient CO2?
+
+```{r}
+
+soil_organic_carbon_summary <- soil_organic_carbon |>  
+  group_by(Experiment) |> 
+  summarise(across(ends_with("CO2_mean"), mean),
+            log_response_ratio = log(increased_CO2_mean/ambient_CO2_mean, base= exp(1)))
+
+knitr::kable(soil_organic_carbon_summary)
+
+```
+
+
+
+```{r}
+
+soil_organic_carbon |>
+  mutate(Experiment_Phase = ifelse(`Time_(years)` <= 3, "early phase", 
+                            ifelse(`Time_(years)` >= 6, "mid-phase","late phase")))|> # the Experiments are converted into 3 phases
+  group_by(Experiment_Phase) |> 
+  summarise(across(ends_with("CO2_mean"), mean),
+            log_response_ratio = log(increased_CO2_mean/ambient_CO2_mean, base= exp(1)))
+
+
+```
+
