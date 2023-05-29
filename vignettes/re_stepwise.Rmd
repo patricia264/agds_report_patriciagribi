@@ -1,0 +1,205 @@
+---
+title: "Report Exercise 08: Stepwise Forward Regression"
+author: "Patricia Gribi"
+date: "2023-04-16"
+output: html_document
+---
+
+## Introduction
+
+In this Report Exercise, a stepwise forward regression was conducted to model GPP 
+(gross primary productivity) using the available predictors in the dataset of 
+half-hourly ecosystem fluxes.
+
+
+```{r, message = FALSE}
+
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+
+# read dataset and load packages
+daily_fluxes <- read.csv("../data/df_for_stepwise_regression.csv") |> 
+  drop_na()
+
+```
+
+
+## The Step-Algorithm
+
+
+```{r}
+
+# the dependent variable
+y <- daily_fluxes$GPP_NT_VUT_REF
+
+# vector of the independent variables
+all_vars_selected <- daily_fluxes |>
+  select(-c("siteid","GPP_NT_VUT_REF","TIMESTAMP" ))|>
+  colnames()
+
+source("../r/f_re_ste.R")
+
+df_metrics <- step_regression(y, all_vars_selected)
+
+```
+
+
+A manual stepwise forward regression was performed on the daily-fluxes dataset.
+The iterative algorithm aims to select the most influential independent 
+variables to include in the model. The process continues until all the desired 
+independent variables from the dataset have been chosen.
+
+The algorithm operates within a for-loop. In each round, the algorithm evaluates 
+the potential predictors and selects the best one to add to the model. The 
+criterion used to determine the best predictor is the highest R-squared value.
+
+In each round, the current best model is saved before introducing the next 
+predictor. This allows the comparison and analysis of the incremental impact of 
+each additional predictor.
+
+By following this stepwise forward regression approach, the algorithm gradually 
+builds a predictive model by systematically selecting the most relevant 
+predictors based on their individual contributions to the overall model fit.
+
+
+```{r}
+
+# Add a column named "row_number" that numbers the rows
+df_metrics <- df_metrics |>
+  mutate(ModelNr = dplyr::row_number())
+
+# Extract best model of df_metrics
+best_model <- df_metrics[10,]
+
+```
+
+
+```{r}
+
+# table of the results
+kable(df_metrics, caption = "The Regression Models", col.names = c("Model", 
+                                                                   "rsq", "AIC",
+                                                                   "Model Nr."))
+
+```
+
+
+## Plot and Interpretation
+
+
+### AIC and R-Squared Relationship
+
+The relationship between AIC and R-squared can provide valuable insights into 
+the model's performance and the impact of adding predictors.
+
+As the number of predictors increases, it is expected that the AIC value will 
+initially decrease. This indicates that the model's fit improves as more 
+variables are included. The decreasing AIC suggests that the added predictors 
+are providing valuable information and contributing to a better understanding of 
+the dependent variable.
+
+However, the AIC starts increasing again after a certain point when similar 
+variables are added. This suggests that the additional variables may not 
+contribute substantially to the model's fit and could potentially introduce 
+unnecessary complexity. 
+
+The stepwise selection process identifies first the least "bad" variables to 
+include. Although these variables may not contribute significantly to improving
+the model's fit, they still provide some incremental value and are considered 
+preferable over other variables that may have a more detrimental effect on the 
+overall model performance. This is the reason why the AIC then goes up gradually. 
+
+As more predictors are added to the model, the R-squared value tends to increase. 
+R-squared measures the proportion of the dependent variable's variance that can 
+be explained by the independent variables in the model. Therefore, a higher 
+R-squared indicates a better fit of the model to the data. The increasing trend 
+of R-squared with the number of predictors suggests that the added variables are 
+capturing additional variability and enhancing the model's ability to explain 
+the outcome of interest.
+
+
+### The Best Model
+
+The best model, as determined by the stepwise regression process, exhibits a low 
+AIC value of 15893.35 and includes 10 predictors that contribute to explaining 
+the variation in the dependent variable. The dependent variable of the model is 
+GPP_NT_VUT_REF, which represents the ecosystem-level gross CO2 uptake flux 
+driven by photosynthesis. In other words, it quantifies the overall amount of 
+CO2 absorbed by the ecosystem through photosynthetic processes.
+
+The 10 model predictors are: incoming photosynthetic photon flux density, 
+longwave incoming radiation, vapor pressure deficit, air temperature, windspeed 
+friction velocity, shortwave incoming radiation, precipitation, CO2 mole 
+fraction and atmospheric pressure. 
+
+By including these predictors, the model aims to capture the important 
+environmental factors that drive the ecosystem-level gross CO2 uptake. The 
+model's low AIC value suggests that it provides a relatively good fit to the 
+data and effectively explains the variation in GPP_NT_VUT_REF, allowing insights 
+into the processes and factors influencing ecosystem photosynthesis and CO2 
+uptake.
+
+
+### Model Plots
+
+
+The displayed plot below visualizes the results of the stepward forward 
+regression, respectively plots the aic and r-squared values of the different 
+models against each other. As discussed previously, the best model is considered
+having the lowest possible AIC and a high r-squared value.
+
+
+```{r}
+
+ggplot(
+  data = df_metrics,
+  aes(x = rsq, y = AIC, color = as.factor(ModelNr))) +
+  geom_point(alpha = 1, size = 3) +
+  geom_smooth(formula = y ~ x + 0, method = "lm", se = FALSE) +
+  labs(x = "rsq", y = "AIC", color = "Model Nr.", title = 
+  "Different Regression Models") +
+  theme(panel.grid = element_line(color = "gray", linetype = "dashed")) +
+  scico::scale_color_scico_d(palette = "romaO")
+
+```
+
+
+By zooming closer it is recognizable, that the best model is the model nr. 10. 
+With the lowest AIC and a high r-Squared the model strikes a good balance between 
+model complexity and explanatory power, providing a strong fit to the data while 
+avoiding overfitting.
+
+
+```{r, warning = FALSE}
+
+ggplot(
+  data = df_metrics, 
+  aes(x = rsq, y = AIC, color = as.factor(ModelNr))) +
+  geom_point(alpha = 1, size = 6) +
+  geom_point(data = best_model, color = "red", size = 10, shape = 21, fill = 
+               "transparent", stroke = 2) +
+  geom_smooth(formula = y ~ x + 0, method = "lm", se = FALSE) +
+  geom_text(
+    data = df_metrics[df_metrics$ModelNr == 10, ],  # filtered subset for the specific point
+    aes(label = "Model 10"), vjust = 3, size = 3, color = "black") +
+  labs(x = "rsq", y = "AIC", color = "Model Nr.", title = 
+  "Different Regression Models") +
+  xlim(0.528,0.529) +  # set the x-axis limits 
+  ylim(15890, 15905)+  
+  scico::scale_color_scico_d(palette = "romaO")+
+  theme(
+    panel.grid = element_line(color = "gray", linetype = "dashed")
+  )
+
+```
+
+
+It is important to mention that AIC and R-squared are just two measures among 
+many that can be used to evaluate models. Depending on the specific context and 
+the goals of the analysis, other criteria such as adjusted R-squared, 
+Bayesian Information Criterion (BIC), or cross-validation measures may also be 
+considered for a comprehensive model assessment.
+
+
