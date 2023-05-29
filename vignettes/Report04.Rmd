@@ -1,0 +1,247 @@
+---
+title: "Report Exercise 04: Telling a Story from Data"
+author: "Patricia Gribi"
+date: "2023-03-11"
+output: html_document
+---
+
+## Introduction
+
+In this section the aim was to visualize data of the dataset airquality. With the
+help-function, different informations about the dataset are given. The dataset 
+airquality shows the daily air quality measurements in New York, from May to 
+September 1973. The data frame contains 153 observations on 6 variables. 
+
+In a first step two variables from the raw dataset were chosen and plotted 
+against each other. In this case: Ozone and Months.
+
+
+```{r, message= FALSE}
+
+# loading packages
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+
+help(airquality) # information on the dataset
+str(airquality) # structure of the dataset
+summary(airquality)
+
+plot(airquality$Month, airquality$Ozone)
+
+```
+
+## Data Exploration and Visualizations
+
+For a better visualization of the timeline, months and days were aggregated 
+in a new column 'Date'.
+
+
+```{r, message = FALSE}
+
+# aggregate months and days and make new column date
+aq <- datasets::airquality |> 
+  mutate(Date = make_date( year = 1973, month = airquality$Month, day = airquality$Day))|>
+  group_by(Date)
+
+```
+
+
+Next, the NA values were checked. How many are there and in which columns?
+
+
+```{r}
+
+# see how many missing values in each column are
+colSums(is.na(aq))
+
+# remove NA-values
+aq_withtout_NA = aq[complete.cases(aq), ]
+
+```
+
+
+The plot below now contains labeled axes, a title and has no NA-values. The mean
+concentration of Ozone in parts per billion from 1300 to 1500 hours at Roosevelt
+Island over the months May to October is shown. 
+
+
+```{r}
+
+ozone_date_lineplot <- ggplot(
+  data = aq_withtout_NA,
+  aes(x = Date, y = Ozone))+
+  geom_line() +
+  geom_point()  +
+  labs(title = "Ozone concentration from May to October",
+       subtitle = "Site: Roosevelt Island",
+       x = "Month",
+       y = "Ozone [ppb]") +
+  theme_classic()
+
+ozone_date_lineplot
+
+```
+```{r}
+
+summary(aq$Ozone)
+
+```
+
+
+The ozone levels exhibit a range of 1 to 186 ppb from May through October. 
+Additionally, it is observed from the plot that the ozone levels exhibit less 
+fluctuation during the months of May and September. To further examine the 
+variation in ozone levels across different months, a bar plot will be utilized,
+where each bar represents the mean ozone level for a particular month.
+
+
+```{r, warning = FALSE}
+
+# Aggregate to monthly ozone data
+monthly_ozone <- aq |>
+  group_by(Month) |>
+  summarise(Mean_Ozone = mean(Ozone, na.rm = TRUE))
+
+monthly_ozone$Month <- factor(monthly_ozone$Month, 
+                              levels = c(5, 6, 7, 8, 9),
+                              labels = c("May", "Jun", "Jul", "Aug", "Sep"))
+
+
+# Bar plot
+ozone_date_barplot <- ggplot(
+  data = monthly_ozone,
+  aes( x = Month, y = Mean_Ozone)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  labs(title = "Ozone concentration per month",
+       x = "Month", y = "Ozone [ppb]")
+
+
+# Custom plot
+ozone_date_customplot <- ggplot(
+  data = monthly_ozone,
+  aes( x = Month, y = Mean_Ozone)) +
+  geom_segment(aes(x = Month, xend = Month, y = 0, yend = Mean_Ozone), size = 8, 
+               color = "dodgerblue4") +
+  geom_point(aes(x = Month, y = Mean_Ozone), size = 10, color = "goldenrod1") +
+  geom_text(aes(x = Month, y = Mean_Ozone, label = format(Mean_Ozone, 
+                                                          digits = 3)), size = 3
+            , color = "black") +
+  theme_classic() +
+  labs(title = "Ozone concentration per month",
+       x = "Month", y = "Ozone [ppb]") +
+  scale_y_continuous(limits = c(0, 65.00), expand = c(0,0))
+
+
+# combining of plots
+cowplot:: plot_grid(ozone_date_barplot, ozone_date_customplot)
+
+```
+
+The summer months of July and August exhibit significantly higher mean ozone 
+concentrations compared to the spring (May) and fall (September) months. The 
+line plot before clearly showed a higher variation in the ozone levels during the
+summer months. It is remarkable that despite such high fluctuations, the mean 
+ozone levels remain substantially higher during the summer months compared to 
+the other months.
+
+A boxplot has been generated to visualize the distribution of the ozone data 
+across the different months, enabling also the visualization of the spread 
+and skewness of the data, as well as identification of any possible outliers.
+
+
+```{r, warning = FALSE}
+
+# Box plot + jittered points
+ozone_boxplot <- ggplot(
+  data = aq,
+  aes(x = Month, y = Ozone, group = Month)) +
+  geom_boxplot(fill = "grey70", outlier.shape = NA) +
+  geom_jitter(width = 0.2, alpha = 0.3) +
+  labs(title = "Boxplot Ozone Concentration during various Months") +
+  labs(x = "Month", y = "Ozone [ppb]") +
+  theme_classic()
+
+ozone_boxplot
+
+```
+
+
+With the aid of this new plot, the previous findings are further supported. 
+Specifically, the wider boxes and higher medians observed during the months of 
+July and August in the boxplot underline the prior observation that the mean 
+ozone levels during these months are significantly higher compared to the other 
+months.
+
+In order to gain a more comprehensive understanding of the factors influencing 
+ozone levels, additional variables from the airquality dataset will be analyzed. 
+Specifically, it will be investigated how other variables relate to ozone levels 
+and whether there is any correlation between these variables. 
+
+In the first plot, the ozone is plotted on the x-axis and wind is plotted on the 
+y-axis. This means that the wind values are being compared against the ozone 
+values, and it can be analyzed whether there is any association or pattern 
+between the two variables.
+
+
+```{r, message = FALSE}
+
+ozone_wind_plot <- ggplot(
+  data = aq_withtout_NA,
+  aes(x = Ozone, y = Wind)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(x = "Ozone [ppb]", 
+       y = "Wind [mph]") +
+  theme_classic()
+
+ozone_wind_plot
+
+```
+
+Based on the scatter plot a moderate trend can be observed. Specifically, as 
+wind speed increases, the concentration levels of ozone decrease and vice versa. 
+This suggests a negative correlation between wind speed and ozone concentration 
+levels. However, further statistical analysis may be needed to confirm the 
+strength and significance of this correlation.
+
+In a next step the additional variable temperature was included in the 
+scatterplot. The temperature is represented as color, which allows the 
+visualization of the relationship between all three variables (ozone, wind, and 
+temperature).
+
+
+```{r, warning = FALSE}
+
+ozone_wind_temp_plot <- ggplot(
+  data =aq,
+  aes(x = Ozone, y = Wind, color = Temp)) +
+  geom_point(size = 3) +
+  labs(x = "Ozone [ppb]",
+       y = "Wind [mph]",
+       color = "Temp [F]") +
+  theme_classic() +
+  scale_color_viridis_c()
+
+ozone_wind_temp_plot
+
+```
+
+
+The visualization shows, that there is a pattern or trend in the scatterplot 
+that suggests a relationship between wind, temperature and ozone concentration 
+levels. Specifically, higher temperatures appear to be associated with lower 
+windspeeds and higher ozone concentrations, while lower temperatures appear to 
+be associated with higher windspeeds and lower ozone concentrations. It is 
+important to point out again, that further statistical analysis may be needed to 
+confirm the strength and significance of these correlations. Additionally, it is 
+possible that other factors may be influencing the observed patterns in the data.
+
+
+
+
+
+
+
+
