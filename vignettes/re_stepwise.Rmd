@@ -3,9 +3,11 @@ title: "Report Exercise 08: Stepwise Forward Regression"
 author: "Patricia Gribi"
 date: "2023-04-16"
 output: html_document
+toc: true
 ---
 
 ## Introduction
+
 
 In this Report Exercise, a stepwise forward regression was conducted to model GPP 
 (gross primary productivity) using the available predictors in the dataset of 
