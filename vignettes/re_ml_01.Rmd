@@ -1,0 +1,328 @@
+---
+title: "Report Exercise 09: Comparison of the linear regression and KNN models"
+author: "Patricia Gribi"
+date: "2023-05-08"
+output: html_document
+toc: true
+---
+
+## Introduction
+
+
+In this Chapter the goal was to understand and interpret the observed differences 
+of the model performances of the linear regression and the KNN model. They were 
+both evaluated on the training and test set. Furthermore the role of k in the 
+KNN model was looked at more closely.
+
+
+```{r, message = FALSE}
+
+# read dataset and load libraries
+library(tidyverse)
+library(ggplot2)
+library(caret)
+
+daily_fluxes <- read_csv("../data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv")
+
+```
+
+
+## Data cleaning
+
+
+```{r}
+
+source("../r/f_data_cleaning.R")
+
+daily_fluxes <- data_cleaning(daily_fluxes)
+
+```
+
+
+## Data Splitting, Model-Fit and Model Evaluation
+
+
+```{r, message = FALSE}
+
+source("../r/f_data_split.R")
+
+splitted_data <- data_split(daily_fluxes, prop = 0.7)
+pp <- splitted_data$pp
+daily_fluxes_train <- splitted_data$daily_fluxes_train
+daily_fluxes_test <- splitted_data$daily_fluxes_test
+
+
+# Fit linear regression model
+    mod_lm <- caret::train(
+      pp, 
+      data = daily_fluxes_train |> drop_na(), 
+      method = "lm",
+      trControl = caret::trainControl(method = "none"),
+      metric = "RMSE"
+    )
+
+
+# Evaluate linear regression model  
+source("../r/f_eval_model.R")
+
+linear_model <- eval_model(mod = mod_lm, df_train = daily_fluxes_train, 
+                           df_test = daily_fluxes_test)
+df_lm_metrics <- linear_model$df_test #read dataframe with values needed
+linear_model_plot <- linear_model$plot
+
+
+# Fit knn model with k=8 and evaluate it
+source("../r/f_knn_model.R")  
+mod_knn <- knn_model(daily_fluxes_train, pp, k= 8)
+
+source("../r/f_eval_model.R")
+knn_model <- eval_model(mod = mod_knn, df_train = daily_fluxes_train, df_test = 
+                          daily_fluxes_test)
+df_knn_metrics <- knn_model$df_test
+knn_mae <- knn_model$mae_test
+knn_rsq <- knn_model$rsq_test
+knn_model_plot <- knn_model$plot
+
+```
+
+
+```{r}
+
+# visual difference between the linear and the knn model
+linear_model_plot
+knn_model_plot
+cowplot::plot_grid(linear_model_plot, knn_model_plot)
+
+```
+
+
+## Interpretation of observed differences in the context of the bias-variance 
+trade-off
+
+- Why is the difference between the evaluation on the training and the test set 
+larger for the KNN model than for the linear regression model?
+
+Overfitting: KNN tends to have a higher risk of overfitting, especially with 
+smaller values of k. With a low k value, KNN can capture noise in the training 
+data, leading to high variability in predictions. This can result in a larger 
+difference between the training and test performance. In contrast, linear 
+regression's assumption of linearity can help mitigate overfitting, leading to 
+smaller differences between training and test performance.
+
+KNN relies heavily on the input features and their similarity measures. If the 
+feature space is not well-engineered or contains irrelevant or noisy features, 
+KNN may struggle to make accurate predictions, leading to larger differences 
+between training and test performance. Linear regression, with its assumption of 
+linearity, can be more robust to noisy or irrelevant features.
+
+- Why does the evaluation on the test set indicate a better model performance 
+for the KNN model than for the linear regression model?
+
+Non-linearity in the data: KNN models are capable of capturing complex 
+non-linear relationships in the data because they make predictions based on the 
+similarity of neighboring data points. If the true relationship between the 
+features and the target variable is non-linear, the KNN model may be better 
+suited to capture and model that non-linearity compared to the linear regression 
+model, which assumes a linear relationship.
+
+Flexibility and adaptability: KNN models are more flexible and adaptable to 
+different types of data. They do not impose strong assumptions about the 
+functional form of the relationship between the features and the target variable. 
+This flexibility allows KNN models to fit the training data closely and 
+potentially achieve better performance on the test set, especially if the true 
+relationship is more complex and cannot be accurately captured by a linear 
+regression model.
+
+Noise and outliers: Linear regression models are sensitive to outliers and noise 
+in the data, as they try to fit a linear line that minimizes the overall squared 
+distance between the predicted and actual values. On the other hand, KNN models 
+consider the local neighborhood of data points, which can help in mitigating the 
+impact of outliers and noise to some extent. Therefore, in datasets with 
+significant noise or outliers, the KNN model may outperform linear regression.
+
+- How would you position the KNN and the linear regression model along the 
+spectrum of the bias-variance trade-off?
+
+The bias-variance trade-off describes the trade-off between the model's ability 
+to capture the complexity of the data (variance) and its ability to generalize 
+well to unseen data (bias).
+
+Bias: Bias refers to the error introduced by approximating a real-world problem 
+with a simplified model. A model with high bias tends to make simplistic 
+assumptions and may underfit the data. It fails to capture the true underlying 
+patterns and relationships in the data.
+
+Variance: Variance refers to the amount by which the model's predictions vary 
+for different training datasets. A model with high variance is overly sensitive 
+to the training data and may overfit, meaning it fits the training data 
+extremely well but fails to generalize to new, unseen data.
+
+KNN model: KNN has the potential to have low bias because it can capture complex 
+relationships in the data. As the value of K (the number of nearest neighbors) 
+decreases, the model becomes more flexible and capable of fitting the training 
+data closely. But it has a relatively high variance because it relies heavily on 
+the training data. It can be sensitive to small fluctuations and noise in the 
+training set, which may lead to overfitting. Therefore, KNN tends to have a 
+higher risk of overfitting (high variance) as the value of K decreases.
+
+linear regression model: Linear regression assumes a linear relationship between 
+the features and the target variable. It seeks to fit a linear function that 
+best represents the data. Linear regression has the potential to have a high 
+bias because unless the data is actual linear it makes rather simplistic 
+assumptions and may underfit the data. Linear regression tends to have low 
+variance since it imposes a predefined linear structure. It is less sensitive to 
+fluctuations in the training data and generally provides stable predictions.
+
+
+## The Role of k
+
+Hypothesis for how the R-squared and the MAE evaluated on the test and on the 
+training set would change for k approaching 1:
+
+Underfitting: When k approaches 1, the model tends to overfit the training data, 
+as it relies heavily on a single nearest neighbor. This can result in a lower 
+training error (including MAE), but it may not generalize well to new data. The 
+MAE will be higher on the test data, indicating poor predictive performance.
+
+The R-squared value on the other hand will decrease, an indication for lack of 
+generalizability and potential overfitting.
+
+
+Hypothesis for k and R-squared approaching N (the number of observations in the 
+data):
+
+Overfitting: When k is very large (approaching N), the model becomes less 
+flexible and will oversmooth the relationships in the data. The model will have
+a high bias and poor prediction performance, resulting in higher MAE values on 
+both the training and test data.
+
+The R-squared value will stabilize, no further increase as k approaches n. This 
+means that the KNN model does not become more effective at explaining the 
+variance in the dependent variable based on the independent variables. It 
+suggests that the model's predictions are not able to closer match the actual 
+observed values.
+
+
+## Plots
+
+
+The follwoing plot shows a visualization of the temporal variations of observed 
+and modelled GPP for both, linear and knn model.
+
+
+```{r, warning = FALSE, message = FALSE}
+
+# Plot with linear model, knn model and observations
+model_comp_plot <- ggplot() +
+  geom_line(data = df_lm_metrics, aes(x = TIMESTAMP, y = fitted, color = 
+                                        "linear model")) +
+  geom_line(data = df_knn_metrics, aes(x = TIMESTAMP, y = fitted, color = 
+                                         "knn model")) +
+  geom_line(data = df_knn_metrics, aes(x = TIMESTAMP, y = GPP_NT_VUT_REF, 
+                                       color = "observed GPP")) +
+  labs(x = "Time", y = "GPP_NT_VUT_REF", color = "Legend", title = 
+         "Temporal Variations of observed and modelled GPP") +
+  scale_color_manual(values = c("red", "blue", "green")) +
+  theme_minimal()
+
+model_comp_plot
+
+```
+
+
+### Optimal k
+
+In the code chunk below model fitting and evaluation for different values for  
+k are performed. There is an optimal k-value that strikes a balance between 
+underfitting and overfitting, leading to the best predictive performance. To 
+find the optimal k, the lowest MAE-value is chosen.
+
+
+```{r, message = FALSE}
+
+mae_rsq_data <- data.frame()
+
+for(k in 1:100){
+  
+source("../r/f_knn_model.R")  
+mod_knn <- knn_model(daily_fluxes_train, pp, k)
+
+source("../r/f_eval_model.R")
+knn_model <- eval_model(mod = mod_knn, df_train = daily_fluxes_train, df_test = 
+                          daily_fluxes_test)
+knn_mae <- knn_model$mae_test
+knn_rsq <- knn_model$rsq_test
+
+# dataframe with k, mae and rsq as rows
+mae_rsq_data <- rbind(mae_rsq_data, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+```{r}
+
+k_min <- mae_rsq_data[which.min(mae_rsq_data$mae), "k"]  # Optimal k value
+mae_min <- mae_rsq_data[which.min(mae_rsq_data$mae), "mae"]  # Minimum MAE value
+
+k_mae_plot <- ggplot() +
+  geom_line(data = mae_rsq_data, aes(x = k, y = mae)) +
+  labs(x = "k", y = "MAE", title = "k-MAE Plot") +
+  theme_minimal() +
+  geom_vline(data = mae_rsq_data[which.min(mae_rsq_data$mae), ], 
+             aes(xintercept = k), linetype = "dashed", color = "blue", size = 1)+
+  geom_hline(data = mae_rsq_data[which.min(mae_rsq_data$mae), ], 
+             aes(yintercept = mae), linetype = "dashed", color = "blue", size = 1) 
+
+k_mae_plot <- k_mae_plot +
+  annotate("text", x = k_min, y = max(mae_rsq_data$mae), label = 
+             paste("( Optimal: k = ", k_min,", MAE = ", round(mae_min, 2), " )"), 
+           vjust = 27, hjust = -0.1,color = "blue") 
+
+k_mae_plot
+
+```
+
+
+The plot above shows a underfitting- region where k-values are between 1 and 20
+and a region of overfitting where k-values approach n (in this case 100). 
+The region of overfitting starts where the MAE-value rises again, so around 
+k = 75.
+
+
+Below the rsq value for different k values is modelled.
+
+```{r}
+
+k_rsq_plot <- ggplot() +
+  geom_line(data = mae_rsq_data, aes(x = k, y = rsq), size = 1) +
+  labs(x = "k", y = "rsq", title = "k-rsq Plot") +
+  theme_minimal()  
+
+k_rsq_plot
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
