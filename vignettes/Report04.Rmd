@@ -31,6 +31,7 @@ plot(airquality$Month, airquality$Ozone)
 
 ```
 
+
 ## Data Exploration and Visualizations
 
 For a better visualization of the timeline, months and days were aggregated 
@@ -82,6 +83,8 @@ ozone_date_lineplot <- ggplot(
 ozone_date_lineplot
 
 ```
+
+
 ```{r}
 
 summary(aq$Ozone)
@@ -139,6 +142,7 @@ cowplot:: plot_grid(ozone_date_barplot, ozone_date_customplot)
 
 ```
 
+
 The summer months of July and August exhibit significantly higher mean ozone 
 concentrations compared to the spring (May) and fall (September) months. The 
 line plot before clearly showed a higher variation in the ozone levels during the
@@ -191,7 +195,7 @@ ozone_wind_plot <- ggplot(
   data = aq_withtout_NA,
   aes(x = Ozone, y = Wind)) +
   geom_point(size = 3) +
-  geom_smooth(method = "lm", color = "blue") +
+  geom_smooth(method = "lm", color = "blue", se = FALSE) +
   labs(x = "Ozone [ppb]", 
        y = "Wind [mph]") +
   theme_classic()
