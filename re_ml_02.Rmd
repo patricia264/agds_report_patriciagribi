@@ -292,7 +292,7 @@ pooled_Dav_k_min <- pooled_Dav_mae_rsq[which.min(pooled_Dav_mae_rsq$mae), "k"]  
 pooled_Dav_mae_min <- pooled_Dav_mae_rsq[which.min(pooled_Dav_mae_rsq$mae), "mae"]  # Minimum MAE value
 
 
-# Creating a new dataframe 
+# Creating the result dataframe 
 results <- data.frame("Model Predictions" = c("Within Davos", "Within Laegern", 
                                               "Across Laegern/Davos", 
                                               "Across Davos/Laegern", 
