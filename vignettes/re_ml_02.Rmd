@@ -1,0 +1,370 @@
+---
+title: "Report Excerise 10: Model Generalisability"
+author: "Patricia Gribi"
+date: "2023-05-22"
+output: html_document
+---
+
+## Introduction
+
+
+The task was to train a model on ecosystem flux observations from one site and 
+predict it to another site. How well is a model generalisable to a new site?
+
+
+```{r, message = FALSE}
+
+# read dataset and load libraries
+library(tidyverse)
+library(ggplot2)
+library(caret)
+library(knitr)
+
+daily_fluxes_Dav <- read_csv("../data/FLX_CH-Dav_FLUXNET2015_FULLSET_DD_1997-2014_1-3.csv")
+daily_fluxes_Lae <- read_csv("../data/FLX_CH-Lae_FLUXNET2015_FULLSET_DD_2004-2014_1-4.csv")
+
+```
+
+
+## Data Cleaning and Data Splitting
+
+
+```{r, message = FALSE}
+
+source("../r/f_data_cleaning.R")
+
+daily_fluxes_Dav <- data_cleaning(daily_fluxes_Dav)|>
+  select(-P_F)
+daily_fluxes_Lae <- data_cleaning(daily_fluxes_Lae)|>
+  select(-P_F)
+
+```
+
+
+```{r, message = FALSE}
+
+# set aside 20% of the data of each site for testing
+source("../r/f_data_split.R")
+
+# splitted data Davos
+splitted_data_Dav <- data_split(daily_fluxes_Dav, prop = 0.8)
+pp_Dav <- splitted_data_Dav$pp
+daily_fluxes_train_Dav <- splitted_data_Dav$daily_fluxes_train
+daily_fluxes_test_Dav <- splitted_data_Dav$daily_fluxes_test
+
+# splitted data Laegern
+splitted_data_Lae <- data_split(daily_fluxes_Lae, prop = 0.8)
+pp_Lae <- splitted_data_Lae$pp
+daily_fluxes_train_Lae <- splitted_data_Lae$daily_fluxes_train
+daily_fluxes_test_Lae <- splitted_data_Lae$daily_fluxes_test
+
+```
+
+
+Because the evaluations would take too long for k from 1:100 a sequence was 
+created.
+
+
+```{r}
+
+#create a sequence of specific k values that run through the for-loops
+
+k_values <- c(2, 5, 10, 15, 20, 25, 30, 35, 40, 60, 100)
+
+```
+
+
+## Within-Site Predictions
+
+
+Here, the models of Davos and Laegern are evaluated from training and test data 
+within the same site.
+
+
+```{r, message = FALSE}
+
+# Davos
+
+within_Dav_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+mod_knn_Dav <- knn_model(daily_fluxes_train_Dav, pp_Dav, k)
+
+source("../r/f_eval_model.R")
+knn_model_Dav <- eval_model(mod = mod_knn_Dav, df_train = daily_fluxes_train_Dav, 
+                        df_test = daily_fluxes_test_Dav)
+knn_mae <- knn_model_Dav$mae_test
+knn_rsq <- knn_model_Dav$rsq_test
+
+# dataframe with k, mae and rsq as rows
+within_Dav_mae_rsq <- rbind(within_Dav_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+```{r, message = FALSE}
+
+# Laegern
+
+within_Lae_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+mod_knn_Lae <- knn_model(daily_fluxes_train_Lae, pp_Lae, k)
+
+source("../r/f_eval_model.R")
+knn_model_Lae <- eval_model(mod = mod_knn_Lae, df_train = daily_fluxes_train_Lae, 
+                        df_test = daily_fluxes_test_Lae)
+knn_mae <- knn_model_Lae$mae_test
+knn_rsq <- knn_model_Lae$rsq_test
+
+# dataframe with k, mae and rsq as rows
+within_Lae_mae_rsq <- rbind(within_Lae_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+## Across-Site Predictions
+
+
+Below the models of Davos and Laegern are evaluated from training and test data 
+across sites. One model takes train-data from Davos and test-data from Laegern
+and the other model vice versa. 
+
+
+```{r, message = FALSE}
+
+# Training Laegern, Test Davos
+
+across_LaeDav_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+across_mod_knn_LaeDav <- knn_model(daily_fluxes_train_Lae, pp_Lae, k)
+
+source("../r/f_eval_model.R")
+across_knn_model_LaeDav <- eval_model(mod = across_mod_knn_LaeDav, df_train = daily_fluxes_train_Lae, 
+                        df_test = daily_fluxes_test_Dav)
+knn_mae <- across_knn_model_LaeDav$mae_test
+knn_rsq <- across_knn_model_LaeDav$rsq_test
+
+# dataframe with k, mae and rsq as rows
+across_LaeDav_mae_rsq <- rbind(across_LaeDav_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+```{r, message = FALSE}
+
+# Training Davos, Test Laegern
+
+across_DavLae_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+across_mod_knn_DavLae <- knn_model(daily_fluxes_train_Dav, pp_Dav, k)
+
+source("../r/f_eval_model.R")
+across_knn_model_DavLae <- eval_model(mod = across_mod_knn_DavLae, df_train = daily_fluxes_train_Dav, 
+                        df_test = daily_fluxes_test_Lae)
+knn_mae <- across_knn_model_DavLae$mae_test
+knn_rsq <- across_knn_model_DavLae$rsq_test
+
+# dataframe with k, mae and rsq as rows
+across_DavLae_mae_rsq <- rbind(across_DavLae_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+## Pooled Predictions
+
+
+```{r, message = FALSE}
+
+# pooled model
+pooled_fluxes_DavLae <- rbind(daily_fluxes_Dav, daily_fluxes_Lae)
+
+
+#splitting
+source("../r/f_data_split.R")
+
+splitted_data_pooled <- data_split(pooled_fluxes_DavLae, prop = 0.8)
+pp_pooled <- splitted_data_pooled$pp
+daily_fluxes_train_pooled <- splitted_data_pooled$daily_fluxes_train
+daily_fluxes_test_pooled <- splitted_data_pooled$daily_fluxes_test
+
+```
+
+
+```{r, message = FALSE}
+
+# evaluation of pooled model on Laegern
+
+pooled_Lae_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+mod_knn_pooled <- knn_model(daily_fluxes_train_pooled, pp_pooled, k)
+
+source("../r/f_eval_model.R")
+knn_model_pooledLae <- eval_model(mod = mod_knn_pooled, df_train = daily_fluxes_train_pooled, 
+                        df_test = daily_fluxes_test_Lae)
+knn_mae <- knn_model_pooledLae$mae_test
+knn_rsq <- knn_model_pooledLae$rsq_test
+
+# dataframe with k, mae and rsq as rows
+pooled_Lae_mae_rsq <- rbind(pooled_Lae_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+```{r, message = FALSE}
+
+# evaluation of pooled model on Davos
+
+pooled_Dav_mae_rsq <- data.frame()
+
+for(k in k_values){
+  
+source("../r/f_knn_model.R")  
+mod_knn_pooled <- knn_model(daily_fluxes_train_pooled, pp_pooled, k)
+
+source("../r/f_eval_model.R")
+knn_model_pooledDav <- eval_model(mod = mod_knn_pooled, df_train = daily_fluxes_train_pooled, 
+                        df_test = daily_fluxes_test_Dav)
+knn_mae <- knn_model_pooledDav$mae_test
+knn_rsq <- knn_model_pooledDav$rsq_test
+
+# dataframe with k, mae and rsq as rows
+pooled_Dav_mae_rsq <- rbind(pooled_Dav_mae_rsq, data.frame(k = k, mae = knn_mae, 
+                                               rsq = knn_rsq))
+
+}
+
+```
+
+
+## Results
+
+
+```{r, message = FALSE}
+
+# Create Dataframe with all the results
+# mae and rsq values within and across-site predictions and the pooled models
+
+within_Dav_k_min <- within_Dav_mae_rsq[which.min(within_Dav_mae_rsq$mae), "k"]  # Optimal k value
+within_Dav_mae_min <- within_Dav_mae_rsq[which.min(within_Dav_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+within_Lae_k_min <- within_Lae_mae_rsq[which.min(within_Lae_mae_rsq$mae), "k"]  # Optimal k value
+within_Lae_mae_min <- within_Lae_mae_rsq[which.min(within_Lae_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+across_LaeDav_k_min <- across_LaeDav_mae_rsq[which.min(across_LaeDav_mae_rsq$mae), "k"]  # Optimal k value
+across_LaeDav_mae_min <- across_LaeDav_mae_rsq[which.min(across_LaeDav_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+across_DavLae_k_min <- across_DavLae_mae_rsq[which.min(across_DavLae_mae_rsq$mae), "k"]  # Optimal k value
+across_DavLae_mae_min <- across_DavLae_mae_rsq[which.min(across_DavLae_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+pooled_Lae_k_min <- pooled_Lae_mae_rsq[which.min(pooled_Lae_mae_rsq$mae), "k"]  # Optimal k value
+pooled_Lae_mae_min <- pooled_Lae_mae_rsq[which.min(pooled_Lae_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+pooled_Dav_k_min <- pooled_Dav_mae_rsq[which.min(pooled_Dav_mae_rsq$mae), "k"]  # Optimal k value
+pooled_Dav_mae_min <- pooled_Dav_mae_rsq[which.min(pooled_Dav_mae_rsq$mae), "mae"]  # Minimum MAE value
+
+
+# Creating the result dataframe 
+results <- data.frame("Model Predictions" = c("Within Davos", "Within Laegern", 
+                                              "Across Laegern/Davos", 
+                                              "Across Davos/Laegern", 
+                                              "Pooled Laegern", "Pooled Davos"),
+                     "MAE" = c(within_Dav_mae_min, within_Lae_mae_min,
+                               across_LaeDav_mae_min, across_DavLae_mae_min,
+                               pooled_Lae_mae_min, pooled_Dav_mae_min),
+                     "Optimal k" = c(within_Dav_k_min, within_Lae_k_min,
+                                     across_LaeDav_k_min, across_DavLae_k_min,
+                                     pooled_Lae_k_min, pooled_Dav_k_min)
+                     )
+
+
+# table of the results
+kable(results, caption = "Different Model Predictions")
+
+```
+
+
+In the table above different models are represented along with their 
+corresponding lowest MAE-value and the resulting optimal 
+k-value. The MAE is a measure of the average absolute difference between the 
+predicted and actual values, indicating the model's performance.
+
+The lowest MAE values obtained for each model reflect their respective best 
+performance in minimizing the prediction errors. A lower MAE indicates better 
+predictive accuracy, as it signifies that the model's predictions are closer to 
+the actual values on average.
+
+
+The best model of all (model with the lowest MAE) ist the model where the train
+data was combined of both sites and then tested on Davos. 
+
+The "worst" model of all ist the model where train-data of Davos and test-data
+of Laegern was used. 
+
+
+### Characteristics of the two Sites
+
+
+Laegern: The site in Laegern has a elevation of 689 meters above sea level. 
+The site experiences a mean annual temperature of 8.3°C and has a average annual 
+precipitation of 1100mm. The vegetation is characterized by mixed forests.
+
+
+Davos: The site in Davos has a elevation of 1639 meters above sea level. 
+The site experiences a mean annual temperature of 2.8°C and has a average annual 
+precipitation of 1062mm. The vegetation is characterized by evergreen needleleaf
+forests.
+
+
+### Discussion of the Results
+
+
+It is soon evident that the two sites differ greatly from each other. The 
+topography, the altitude above sea level, the vegetation and the temperature can 
+have a decisive influence on the GPP_NT_VUT_REF.
+
+This is also why there are big differences on the model evaluations. The within
+site predicitions were in general better than the across site predicitions, 
+except for the across Laegern/Davos model. But the latter shows a optimal k-value 
+of 100. The model therefore tends to become more biased with such a high k-value. 
+It may oversimplify the underlying relationships in the data by considering such 
+a large number of neighbours. 
+
+The pooled models show the lowest MAE values but also very low k-values. 
+
+It is not very good to make such a model evaluation with so different sites.
+It would be better to consider also more sites and with similar geographic 
+conditions. The models would become way better and also the predictions of the
+models.
+
+
+
+
